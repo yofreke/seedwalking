@@ -1,0 +1,196 @@
+<html>
+<body>
+  <canvas id="myCanvas" width="1000" height="1000"></canvas>
+</body>
+
+<script type="text/javascript">
+
+console.log('\n---- ----\nWelcome!');
+const canvas = document.getElementById("myCanvas");
+console.log("canvas=", canvas);
+
+var ctx = canvas.getContext("2d");
+
+// https://stackoverflow.com/questions/36721830/convert-hsl-to-rgb-and-hex
+function hslToHex(h, s, l) {
+  l /= 100;
+  const a = s * Math.min(l, 1 - l) / 100;
+  const f = n => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');   // convert to Hex and prefix "0" if needed
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+const radiusFirstRing = 240;
+const radiusEachRing = 30;
+
+const offsetFromCenter = radiusFirstRing - (radiusEachRing * 4);
+const startOffsetAngle = Math.PI * -0.5;
+
+let selectedRing = -1;
+
+const ringsRingCount = 3;
+
+// const ringPositions = [[300, 600], [500, 600], [400, 400]];
+// const ringRotations = [0, 0, 0];
+const ringPositions = [];
+const ringRotations = [];
+const ringColors = [];
+
+function degToRad(degrees) {
+  return degrees * (Math.PI/180);
+}
+
+// https://stackoverflow.com/questions/9614109/how-to-calculate-an-angle-from-points
+function angle(cx, cy, ex, ey) {
+  var dy = ey - cy;
+  var dx = ex - cx;
+  var theta = Math.atan2(dy, dx); // range (-PI, PI]
+  return theta;
+}
+
+/**
+ * Add a new rings, and position so that the first ring of each rings is one
+ * eachRingRadius away from the center of the canvas.
+ */
+const addRing = () => {
+  ringPositions.push([0, 0]);
+  ringRotations.push(0);
+  ringColors.push('#171717'); // gray
+
+  // Assume only one ring: place on middle Y, and calculate correct X.
+  if (ringPositions.length === 1) {
+    ringPositions[0][0] = (canvas.width / 2);
+    ringPositions[0][1] = (canvas.height / 2) - offsetFromCenter;
+  } else {
+    // For n rings, distribute at an angle around the center of canvas
+    const eachRingOffsetAngle = (2 * Math.PI) / ringPositions.length;
+    // Use a stable index for colors up to n to make it easier to see what is
+    // going on (rings wont change color up to n)
+    const colorDivs = Math.max(6, ringPositions.length);
+
+    // Adjust to make 3x rings appear the same as reference material
+    for (let i = 0; i < ringPositions.length; i++) {
+      ringPositions[i][0] = (canvas.width / 2) + Math.cos(eachRingOffsetAngle * i + startOffsetAngle) * offsetFromCenter;
+      ringPositions[i][1] = (canvas.height / 2) + Math.sin(eachRingOffsetAngle * i + startOffsetAngle) * offsetFromCenter;
+
+      // Go backwards to put yellow at end of list, yellow hard to see
+      ringColors[i] = hslToHex(360 - (360 / colorDivs * i), 100, 50);
+    }
+  }
+
+  updateDraw();
+};
+
+const removeRing = () => {
+  ringPositions.pop();
+  ringRotations.pop();
+  ringColors.pop();
+  updateDraw();
+}
+
+const drawFaceAsRings = (ringIndex) => {
+  const [drawX, drawY] = ringPositions[ringIndex];
+  const rotation = ringRotations[ringIndex];
+
+  // Draw center
+  // ctx.fillStyle = selectedRing == ringIndex ? '#fc4c4c' : '#ffb3b3';
+  ctx.fillStyle = selectedRing == ringIndex ? '#fc4c4c' : ringColors[ringIndex];
+  ctx.beginPath();
+  ctx.arc(drawX, drawY, radiusEachRing * 0.5, 0, 2 * Math.PI);
+  ctx.fill();
+
+  // Draw rings
+  // ctx.strokeStyle = '#171717';
+  ctx.strokeStyle = ringColors[ringIndex];
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < ringsRingCount; i++) {
+    ctx.moveTo(drawX + radiusFirstRing + radiusEachRing * i, drawY);
+    ctx.arc(drawX, drawY, radiusFirstRing + radiusEachRing * i, 0, 2 * Math.PI);
+  }
+  ctx.stroke();
+
+  // Draw face labels
+  ctx.font = "20px Arial";
+  ctx.fillText(ringIndex + "front", drawX, drawY);
+
+  // Note: This approach only seems to work with 3x rings
+  // Back face is 2x distance to center of screen from center of ring
+  const distToCenter = dist(canvas.width / 2, canvas.height / 2, drawX, drawY);
+  const angleToCenter = angle(drawX, drawY, canvas.width / 2, canvas.height / 2);
+  ctx.fillText(
+    ringIndex + "back",
+    drawX + Math.cos(angleToCenter) * distToCenter * 3,
+    drawY + Math.sin(angleToCenter) * distToCenter * 3
+  );
+};
+
+const dist = (x1, y1, x2, y2) => Math.sqrt((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1));
+
+const crossSize = 150;
+
+const updateDraw = () => {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Draw debug center of canvas
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = '#a19f9f';
+  ctx.beginPath();
+  ctx.moveTo(canvas.width / 2 - crossSize, canvas.height / 2 - crossSize);
+  ctx.lineTo(canvas.width / 2 + crossSize, canvas.height / 2 + crossSize);
+  ctx.moveTo(canvas.width / 2 + crossSize, canvas.height / 2 - crossSize);
+  ctx.lineTo(canvas.width / 2 - crossSize, canvas.height / 2 + crossSize);
+  ctx.stroke()
+
+  for (let i = 0; i < ringPositions.length; i++) {
+    drawFaceAsRings(i);
+  }
+};
+
+updateDraw();
+addRing();
+addRing();
+addRing();
+addRing();
+addRing();
+
+canvas.onmousedown = (e) => {
+  console.log('onmousedown', e.x, e.y, e);
+
+  // Check for clicking a ring center
+  selectedRing = -1;
+  for (let i = 0; i < ringPositions.length; i++) {
+    const ringPosition = ringPositions[i];
+    if (dist(ringPosition[0], ringPosition[1], e.x, e.y) < radiusEachRing) {
+      selectedRing = i;
+      console.log('selectedRing=', selectedRing);
+      break;
+    }
+  }
+  updateDraw();
+};
+
+window.onkeydown = (e) => {
+  console.log('onkeydown', e.key, e);
+
+  // Rotate selected ring
+  if (selectedRing >= 0) {
+    if (e.key === 'ArrowLeft') {
+
+    } else if (e.key === 'ArrowRight') {
+
+    }
+  }
+
+  if (e.key === '+' || e.key === '=') {
+    addRing();
+  } else if (e.key === '-' || e.key === '_') {
+    removeRing();
+  }
+}
+
+</script>
+</html>
